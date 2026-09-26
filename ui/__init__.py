@@ -1,0 +1,1 @@
+"""PyQt widgets and windows."""
