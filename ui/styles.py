@@ -1,12 +1,12 @@
 APP_STYLE = """
 QWidget {
     font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
-    font-size: 16px;
+    font-size: 18px;
     color: #172033;
     background: #f6f8fb;
 }
 #Title {
-    font-size: 24px;
+    font-size: 26px;
     font-weight: 700;
     color: #0f172a;
 }
@@ -28,7 +28,7 @@ QPushButton {
     color: white;
     border: none;
     border-radius: 6px;
-    padding: 7px 14px;
+    padding: 8px 14px;
     font-weight: 600;
 }
 QPushButton:hover {
@@ -43,7 +43,7 @@ QListWidget, QTextEdit, QLineEdit, QComboBox, QGraphicsView {
     border-radius: 6px;
 }
 QListWidget::item {
-    padding: 8px;
+    padding: 10px;
     border-bottom: 1px solid #edf2f7;
 }
 QListWidget::item:selected {
@@ -52,6 +52,6 @@ QListWidget::item:selected {
 }
 #Hint {
     color: #64748b;
-    font-size: 14px;
+    font-size: 16px;
 }
 """

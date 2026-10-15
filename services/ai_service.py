@@ -7,8 +7,9 @@ from network.lymphnode_pipeline import LymphNodePipeline
 
 class AIService:
 
-    def __init__(self):
+    def __init__(self, model_config=None):
         self._lymphnode_pipeline = None
+        self.model_config = model_config or {}
 
 
     def _get_lymphnode_pipeline(self):
@@ -23,12 +24,15 @@ class AIService:
         """
 
         if self._lymphnode_pipeline is None:
-            self._lymphnode_pipeline = LymphNodePipeline()
+            self._lymphnode_pipeline = LymphNodePipeline(
+                seg_checkpoint=self.model_config.get("segmentation_model") or None,
+                phenotype_checkpoint=self.model_config.get("phenotype_model") or None,
+            )
 
         return self._lymphnode_pipeline
 
 
-    def analyze_image(self, image_path, manual_override=None):
+    def analyze_image(self, image_path, manual_override=None, calibration=None):
         """
         Analyze one B-mode ultrasound image.
 
@@ -49,6 +53,7 @@ class AIService:
         result = pipeline.predict(
             image_path,
             manual_override=manual_override,
+            calibration=calibration,
         )
 
         instances = result.get(
@@ -129,6 +134,7 @@ class AIService:
                 num_instances,
 
             "modality": result.get("modality", {}),
+            "image_info": result.get("image_info", {}),
         }
 
     def analyze_video(self, video_path, frame_step=5, max_thumbnails=8):

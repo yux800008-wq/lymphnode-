@@ -58,8 +58,8 @@ class FieldsPanel(QGroupBox):
         self.fields["ai_score"].setReadOnly(True)
 
         # 病例基础信息编辑权限：
-        # 病例号只读；姓名/年龄可输入；性别/部位可选择
-        self.fields["case_id"].setReadOnly(True)
+        # 病例号是医生可编辑的显示编号；CaseRecord.record_id 保持内部关联稳定。
+        self.fields["case_id"].setReadOnly(False)
 
         for key in ("patient_name", "age"):
             line_edit = self.fields[key]

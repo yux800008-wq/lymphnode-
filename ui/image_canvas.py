@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from PyQt5.QtCore import QTimer, QRectF, Qt, pyqtSignal
+from PyQt5.QtCore import QTimer, QRectF, Qt, pyqtSignal, QLineF
 from PyQt5.QtGui import (
     QColor,
     QFont,
@@ -25,6 +25,8 @@ from network.image_geometry import crop_effective_roi
 class ImageCanvas(QGraphicsView):
 
     lymphnode_selected = pyqtSignal(int)
+    image_point_selected = pyqtSignal(float, float)
+    calibration_line_finished = pyqtSignal(float, float, float, float)
 
     def __init__(self):
         super().__init__()
@@ -47,6 +49,11 @@ class ImageCanvas(QGraphicsView):
         self._video_interval = 33
         self._is_playing_video = False
         self._roi_info = None
+        self._display_mode = "overlay"
+        self._calibration_active = False
+        self._last_mask = None
+        self._calibration_start = None
+        self._calibration_line = None
         self._show_empty_state()
 
     def _show_empty_state(self):
@@ -82,6 +89,7 @@ class ImageCanvas(QGraphicsView):
         self.lymphnode_instances = []
         self.selected_lymphnode_index = -1
         self._lymphnode_mode = False
+        self._last_mask = None
         self._roi_info = roi_info
         image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
         height, width = image_rgb.shape[:2]
@@ -100,7 +108,9 @@ class ImageCanvas(QGraphicsView):
 
         self.pixmap_item = QGraphicsPixmapItem(pixmap)
         self.scene.addItem(self.pixmap_item)
-        self.scene.setSceneRect(QRectF(pixmap.rect()))
+        # Leave a small scene margin so thick selected contours at the image
+        # edge are not clipped by the viewport boundary.
+        self.scene.setSceneRect(QRectF(pixmap.rect()).adjusted(-8, -8, 8, 8))
         self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
         return True
 
@@ -165,6 +175,7 @@ class ImageCanvas(QGraphicsView):
 
         if mask is None:
             return
+        self._last_mask = mask
 
         rect = self.pixmap_item.boundingRect()
         width = int(rect.width())
@@ -291,6 +302,13 @@ class ImageCanvas(QGraphicsView):
             self.lymphnode_items.append(contour_item)
 
     def mousePressEvent(self, event):
+        if self._calibration_active and self.pixmap_item is not None:
+            point = self._image_point_from_event(event)
+            if point is not None:
+                self._calibration_start = point
+                self._draw_calibration_line(point, point)
+                event.accept()
+                return
         if self.lymphnode_instances and self.pixmap_item is not None:
             scene_pos = self.mapToScene(event.pos())
             rect = self.pixmap_item.boundingRect()
@@ -331,6 +349,85 @@ class ImageCanvas(QGraphicsView):
         # 点击空白区域：保持当前选择，不取消高亮
         super().mousePressEvent(event)
 
+    def mouseMoveEvent(self, event):
+        if self._calibration_active and self._calibration_start is not None:
+            point = self._image_point_from_event(event)
+            if point is not None:
+                self._draw_calibration_line(self._calibration_start, point)
+                event.accept()
+                return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._calibration_active and self._calibration_start is not None:
+            point = self._image_point_from_event(event)
+            start = self._calibration_start
+            self._calibration_start = None
+            self._remove_calibration_line()
+            if point is not None:
+                self.calibration_line_finished.emit(start[0], start[1], point[0], point[1])
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Escape and self._calibration_active:
+            self.set_calibration_active(False)
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def _image_point_from_event(self, event):
+        if self.pixmap_item is None:
+            return None
+        scene_pos = self.mapToScene(event.pos())
+        rect = self.pixmap_item.boundingRect()
+        if not rect.contains(scene_pos):
+            return None
+        width = self.pixmap_item.pixmap().width()
+        height = self.pixmap_item.pixmap().height()
+        return ((scene_pos.x() - rect.left()) * width / rect.width(), (scene_pos.y() - rect.top()) * height / rect.height())
+
+    def _draw_calibration_line(self, start, end):
+        self._remove_calibration_line()
+        from PyQt5.QtWidgets import QGraphicsLineItem
+        self._calibration_line = QGraphicsLineItem(QLineF(start[0], start[1], end[0], end[1]))
+        self._calibration_line.setPen(QPen(QColor("#f97316"), 2))
+        self._calibration_line.setZValue(10)
+        self.scene.addItem(self._calibration_line)
+
+    def _remove_calibration_line(self):
+        if self._calibration_line is not None:
+            self.scene.removeItem(self._calibration_line)
+            self._calibration_line = None
+
+    def set_calibration_active(self, active):
+        self._calibration_active = bool(active)
+        if not active:
+            self._calibration_start = None
+            self._remove_calibration_line()
+        self.setCursor(Qt.CrossCursor if active else Qt.ArrowCursor)
+
+    def set_display_mode(self, mode):
+        self._display_mode = mode
+        if mode == "original":
+            for item in self.ai_items + self.lymphnode_items:
+                self.scene.removeItem(item)
+            self.ai_items = []
+            self.lymphnode_items = []
+            self._lymphnode_mode = False
+        elif mode == "mask":
+            self._lymphnode_mode = False
+            for item in self.lymphnode_items:
+                self.scene.removeItem(item)
+            self.lymphnode_items = []
+            self.draw_ai_result(self._last_mask)
+        else:
+            if self.lymphnode_instances:
+                self.draw_lymphnode_instances(self.lymphnode_instances)
+            elif self._last_mask is not None:
+                self.draw_ai_result(self._last_mask)
+
     def _read_video_frame(self):
         if self._video_capture is None:
             return
@@ -355,7 +452,7 @@ class ImageCanvas(QGraphicsView):
         else:
             self.pixmap_item.setPixmap(pixmap)
 
-        self.scene.setSceneRect(QRectF(pixmap.rect()))
+        self.scene.setSceneRect(QRectF(pixmap.rect()).adjusted(-8, -8, 8, 8))
         self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
 
     def export_snapshot(self, output_path, width=760):

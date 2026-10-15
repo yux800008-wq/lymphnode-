@@ -17,9 +17,9 @@ class CaseListPanel(QGroupBox):
         for case in cases:
             text = f"{case.case_id}  {case.patient_name}".strip()
             item = QListWidgetItem(text)
-            item.setData(Qt.UserRole, case.case_id)
+            item.setData(Qt.UserRole, case.record_id)
             self.list_widget.addItem(item)
-            if case.case_id == selected_case_id:
+            if case.record_id == selected_case_id:
                 item.setSelected(True)
 
         self.list_widget.blockSignals(False)

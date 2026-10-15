@@ -35,3 +35,21 @@ deploy_models/*.pt
 
 # Local Ultralytics copy
 Ultralytics/
+
+# Runtime case outputs
+case_outputs/
+
+# Generated report images
+report_assets/
+
+# Temporary PDF and report screenshots
+tmp/pdfs/
+
+# Python test cache
+.pytest_cache/
+
+# Local application settings
+/app_settings.json
+
+# Local model archive
+/deploy_models.zip

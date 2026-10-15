@@ -441,6 +441,8 @@ class LymphNodePipeline:
     def __init__(
         self,
         device: str | None = None,
+        seg_checkpoint: str | Path | None = None,
+        phenotype_checkpoint: str | Path | None = None,
     ):
         """
         Unified inference pipeline:
@@ -477,6 +479,8 @@ class LymphNodePipeline:
             )
         )
 
+        self.seg_checkpoint = Path(seg_checkpoint) if seg_checkpoint else SEG_CHECKPOINT
+        self.phenotype_checkpoint = Path(phenotype_checkpoint) if phenotype_checkpoint else PHENOTYPE_CHECKPOINT
         self.seg_model = (
             self._load_segmentation_model()
         )
@@ -493,13 +497,11 @@ class LymphNodePipeline:
         self,
     ) -> YOLO:
 
-        if not SEG_CHECKPOINT.exists():
-            raise FileNotFoundError(
-                SEG_CHECKPOINT
-            )
+        if not self.seg_checkpoint.exists():
+            raise FileNotFoundError(self.seg_checkpoint)
 
         model = YOLO(
-            str(SEG_CHECKPOINT)
+            str(self.seg_checkpoint)
         )
 
         return model
@@ -509,13 +511,11 @@ class LymphNodePipeline:
         self,
     ) -> ConcatFusionModel:
 
-        if not PHENOTYPE_CHECKPOINT.exists():
-            raise FileNotFoundError(
-                PHENOTYPE_CHECKPOINT
-            )
+        if not self.phenotype_checkpoint.exists():
+            raise FileNotFoundError(self.phenotype_checkpoint)
 
         ckpt = torch.load(
-            PHENOTYPE_CHECKPOINT,
+            self.phenotype_checkpoint,
             map_location="cpu",
         )
 
@@ -784,6 +784,7 @@ class LymphNodePipeline:
         self,
         image_path: str | Path,
         manual_override: str | None = None,
+        calibration: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
 
         image_path = Path(
@@ -819,6 +820,10 @@ class LymphNodePipeline:
         }
 
         depth_info = detect_depth_scale(raw_image_bgr)
+        depth_info["auto_mm_per_pixel"] = depth_info.get("mm_per_pixel")
+        if calibration and calibration.get("mm_per_pixel", 0) > 0:
+            depth_info["mm_per_pixel"] = float(calibration["mm_per_pixel"])
+            depth_info["calibration_method"] = calibration.get("method", "manual")
         effective_image_bgr, roi_info = crop_effective_roi(raw_image_bgr)
         image_height, image_width = raw_image_bgr.shape[:2]
         effective_height, effective_width = effective_image_bgr.shape[:2]
