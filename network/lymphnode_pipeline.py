@@ -35,14 +35,14 @@ from network.classifiers import ModalityClassifier, VascularityClassifier
 SEG_CHECKPOINT = ROOT / "deploy_models" / "yolo11s_seg_best.pt"
 PHENOTYPE_CHECKPOINT = ROOT / "deploy_models" / "bus_phenotype_best.pt"
 
-SEG_IMGSZ = 640
+SEG_IMGSZ = 960
 SEG_CONF = 0.30
 SEG_NMS_IOU = 0.70
 
 SYM15_MARGIN = 0.15
 
-EXPECTED_PHENOTYPE_EPOCH = 27
-EXPECTED_PHENOTYPE_MACRO = 0.8138359800807995
+EXPECTED_PHENOTYPE_EPOCH = 5
+EXPECTED_PHENOTYPE_MACRO = 0.8383901032191826
 MACRO_TOLERANCE = 1e-6
 
 
